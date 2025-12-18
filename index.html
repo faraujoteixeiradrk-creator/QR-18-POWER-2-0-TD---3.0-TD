@@ -1709,7 +1709,7 @@
                 : 'Precios de la Oferta Consolidada';
 
             const basePrefix = brand.NAME.includes('DRK') ? 'drk' : 'powercup';
-            const color800 = brand.PRIMARY_TEXT.split('-')[1] || 'slate-800'; // Get dynamic color text-drk-800 -> drk-800
+            const color800 = brand.PRIMARY_TEXT.replace('text-', ''); // Get dynamic color: text-drk-800 -> drk-800
 
             // Add 2.0TD Prices (P1-P2, E1-E3)
             const offer20 = winningOffers['2.0TD'];
