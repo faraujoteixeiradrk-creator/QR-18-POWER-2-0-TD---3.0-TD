@@ -1296,8 +1296,16 @@
 
                 lastComparisonResult = final;
                 
-                console.log('Applying brand styles and rendering UI...');
-                applyBrandStyles(brand);
+                console.log('About to apply brand styles. Brand:', brand.NAME);
+                try {
+                    applyBrandStyles(brand);
+                    console.log('Brand styles applied successfully');
+                } catch (styleError) {
+                    console.error('Error in applyBrandStyles:', styleError);
+                    throw styleError;
+                }
+                
+                console.log('About to render UI...');
                 renderResultsUI(final);
                 
                 console.log('Showing results view...');
