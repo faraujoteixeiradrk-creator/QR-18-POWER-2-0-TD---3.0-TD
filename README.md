@@ -1,0 +1,2 @@
+# QR-18-POWER-2-0-TD---3.0-TD
+QR 18 POWER 2-0 TD - 3.0 TD
