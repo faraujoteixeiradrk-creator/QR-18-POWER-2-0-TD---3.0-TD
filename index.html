@@ -1193,88 +1193,120 @@
         }
 
         function compareOffers(data) {
-            const tariffType = currentTariffType;  
-            const tariffsToCompare = currentTariffs[tariffType] || [];
-
-            if (tariffsToCompare.length === 0) return window.showErrorModal(`Las tarifas ${tariffType} no están cargadas.`);
-
-            const results = tariffsToCompare.map(t => calculateTariffCost(t, data, tariffType));
-            
-            let bestOverall = null;
-            let bestDrk = null;
-
-            results.forEach(r => {
-                // Siempre comparamos por el coste anual
-                const annualCost = r.totalAnnual;
+            try {
+                console.log('compareOffers called with data:', data);
+                console.log('currentTariffType:', currentTariffType);
                 
-                // Best overall is the one with the lowest annual cost
-                if (!bestOverall || annualCost < bestOverall.totalAnnual) {
-                    bestOverall = r;
+                const tariffType = currentTariffType;  
+                const tariffsToCompare = currentTariffs[tariffType] || [];
+
+                console.log(`Tarifas disponibles para ${tariffType}:`, tariffsToCompare.length);
+
+                if (tariffsToCompare.length === 0) {
+                    console.error(`No hay tarifas cargadas para ${tariffType}`);
+                    return window.showErrorModal(`Las tarifas ${tariffType} no están cargadas. Por favor, espere un momento e intente de nuevo.`);
                 }
 
-                // Best DRK is the DRK one with the lowest annual cost
-                if (r.offer.isDrk && r.offer.name !== 'Tu Tarifa Actual') {
-                    if (!bestDrk || annualCost < bestDrk.totalAnnual) {
-                        bestDrk = r;
+                const results = tariffsToCompare.map(t => calculateTariffCost(t, data, tariffType));
+                console.log('Results calculated:', results.length);
+                
+                let bestOverall = null;
+                let bestDrk = null;
+
+                results.forEach(r => {
+                    // Siempre comparamos por el coste anual
+                    const annualCost = r.totalAnnual;
+                    
+                    // Best overall is the one with the lowest annual cost
+                    if (!bestOverall || annualCost < bestOverall.totalAnnual) {
+                        bestOverall = r;
+                    }
+
+                    // Best DRK is the DRK one with the lowest annual cost
+                    if (r.offer.isDrk && r.offer.name !== 'Tu Tarifa Actual') {
+                        if (!bestDrk || annualCost < bestDrk.totalAnnual) {
+                            bestDrk = r;
+                        }
+                    }
+                });
+
+                if (!bestOverall) {
+                    console.error('No se encontró ningún resultado válido');
+                    return window.showErrorModal("Sin resultados válidos. Asegúrate de que las tarifas están cargadas.");
+                }
+                
+                console.log('Best overall:', bestOverall.offer.name, bestOverall.totalAnnual);
+                console.log('Best DRK:', bestDrk ? bestDrk.offer.name : 'None', bestDrk ? bestDrk.totalAnnual : 0);
+                
+                let final = bestOverall;
+                let brand = activeBrand;
+
+                // --- LÓGICA DE SELECCIÓN Y BRANDING (Individual) ---
+                if (comparisonMode === 'overall_best') {
+                    // Modo POWER CUP: Buscar la mejor oferta absoluta (con o sin DRK)
+                    final = bestOverall;
+                    
+                    // Aplicar branding según quién ganó
+                    if (final.offer.isDrk) {
+                        brand = BRANDS.DRK;
+                    } else {
+                        brand = BRANDS.POWER_CUP;
+                    }
+                } else {
+                    // Modos DRK (drk_only, drk_prioritized)
+                    if (comparisonMode === 'drk_only') {
+                        final = bestDrk || bestOverall;
+                    } else if (comparisonMode === 'drk_prioritized') {
+                        // Usar DRK si tiene ahorro, sino usar la mejor absoluta
+                        final = (bestDrk && bestDrk.totalAnnual < bestDrk.originalBillAnnual) ? bestDrk : bestOverall;
+                    }
+
+                    // Aplicar branding según quién ganó
+                    if (final.savings > 0 && !final.offer.isDrk) {
+                        brand = BRANDS.POWER_CUP;
+                    } else {
+                        brand = BRANDS.DRK;
                     }
                 }
-            });
-
-            if (!bestOverall) return window.showErrorModal("Sin resultados válidos. Asegúrate de que las tarifas están cargadas.");
-            
-            let final = bestOverall;
-            
-            // --- LÓGICA DE BRANDING (Individual) ---
-            let brand = activeBrand;
-            const isFinalDrk = final.offer.isDrk;
-
-            if (comparisonMode === 'overall_best') {
-                // REQUERIMIENTO DEL USUARIO: Si es modo Power Cup Global, siempre usa Power Cup.
-                brand = BRANDS.POWER_CUP;
-            } else {
-                // DRK modes (drk_only, drk_prioritized)
-                if (comparisonMode === 'drk_only') {
-                    // Force the best DRK offer, or fallback to the best overall if no DRK offers were better than actual.
-                    final = bestDrk || bestOverall;
-                } else if (comparisonMode === 'drk_prioritized') {
-                    // Prefer best DRK *if it saves money*, otherwise take the absolute best overall.
-                    final = (bestDrk && bestDrk.totalAnnual < bestDrk.originalBillAnnual) ? bestDrk : bestOverall;
+                
+                console.log('Final selection:', final.offer.name, 'Brand:', brand.NAME);
+                
+                // Recalcular el ahorro basado en el resultado final seleccionado
+                final.savings = final.originalBillAnnual - final.totalAnnual;
+                
+                // Manejar casos sin ahorro
+                if (final.savings <= 0) {
+                    final.isNegativeSavings = true;
+                    final.savings = 0;
+                    final.totalAnnual = final.originalBillAnnual;
+                    final.offer = { 
+                        name: "Tu Tarifa Actual", 
+                        description: "Es la mejor opción detectada", 
+                        isDrk: false 
+                    };
+                    // Mantener el branding según el modo seleccionado
+                    brand = comparisonMode === 'overall_best' ? BRANDS.POWER_CUP : BRANDS.DRK;
                 }
+                // Add originalTariffType for consistent logic in HTML generation
+                final.originalTariffType = tariffType;
 
-                if (final.isNegativeSavings) {
-                    // No Savings: Use initial choice (DRK)
-                    brand = BRANDS.DRK;  
-                } else if (final.offer.isDrk) {
-                    // DRK won with savings in a DRK mode: Use DRK brand.
-                    brand = BRANDS.DRK;
-                } else {
-                    // Competitor won with savings in a DRK mode: Switch to Power Cup (non-DRK saving)
-                    brand = BRANDS.POWER_CUP;  
-                }
+                lastComparisonResult = final;
+                
+                console.log('Applying brand styles and rendering UI...');
+                applyBrandStyles(brand);
+                renderResultsUI(final);
+                
+                console.log('Showing results view...');
+                document.getElementById('initial-view').classList.add('hidden');
+                document.getElementById('scanner-view').classList.add('hidden');
+                document.getElementById('results-view').classList.remove('hidden');
+                document.getElementById('results-view').classList.add('animate-fade-in-up');
+                
+                console.log('compareOffers completed successfully');
+            } catch (error) {
+                console.error('Error in compareOffers:', error);
+                window.showErrorModal(`Error al calcular: ${error.message}. Por favor, intente de nuevo.`);
             }
-            
-            // Re-calculate the final savings based on the selected 'final' result's annual cost
-            final.savings = final.originalBillAnnual - final.totalAnnual;
-            if (final.savings <= 0) {
-                final.isNegativeSavings = true;
-                final.savings = 0;
-                final.totalAnnual = final.originalBillAnnual;
-                final.offer = { name: "Tu Tarifa Actual", description: "Es la mejor opción detectada", isDrk: false };
-                // Ensure correct brand is applied if there are no savings (fallback to initial choice)
-                brand = comparisonMode === 'overall_best' ? BRANDS.POWER_CUP : BRANDS.DRK;
-            }
-            // Add originalTariffType for consistent logic in HTML generation
-            final.originalTariffType = tariffType;
-
-            lastComparisonResult = final;
-            
-            applyBrandStyles(brand);
-            renderResultsUI(final);
-            
-            document.getElementById('initial-view').classList.add('hidden');
-            document.getElementById('scanner-view').classList.add('hidden');
-            document.getElementById('results-view').classList.remove('hidden');
-            document.getElementById('results-view').classList.add('animate-fade-in-up');
         }
 
 
@@ -1838,12 +1870,17 @@
          * @param {Object} res - Resultado final de la comparación.
          */
         function renderResultsUI(res) {
-            const offer = res.offer;
-            const brand = activeBrand;
-            const isDrk = brand.NAME.includes('DRK');
-            const tariffType = res.tariffType || currentTariffType;
-            // Usamos TARIFF_CONFIG[tariffType] y si no existe (ej: 6.1TD residual), se usa un fallback seguro, aunque ya hemos limpiado el estado
-            const config = TARIFF_CONFIG[tariffType] || TARIFF_CONFIG['2.0TD']; 
+            try {
+                console.log('renderResultsUI called with:', res);
+                
+                const offer = res.offer;
+                const brand = activeBrand;
+                const isDrk = brand.NAME.includes('DRK');
+                const tariffType = res.tariffType || currentTariffType;
+                // Usamos TARIFF_CONFIG[tariffType] y si no existe (ej: 6.1TD residual), se usa un fallback seguro, aunque ya hemos limpiado el estado
+                const config = TARIFF_CONFIG[tariffType] || TARIFF_CONFIG['2.0TD']; 
+
+                console.log('Rendering with tariffType:', tariffType, 'Brand:', brand.NAME);
 
             // FIX: Usar funciones robustas contra NaN
             const eur = n => new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
@@ -2011,6 +2048,12 @@
                     ${breakdownHTML}
                 </div>
             `;
+            
+            console.log('renderResultsUI completed successfully');
+            } catch (error) {
+                console.error('Error in renderResultsUI:', error);
+                window.showErrorModal(`Error al mostrar resultados: ${error.message}`);
+            }
         }
         
         // --- COPIA HTML MEJORADA ---
@@ -2616,40 +2659,54 @@
         // --- MANEJO DE INPUTS MANUALES ---
 
         function handleManualInput() {
-            const isMultiCupsMode = currentTariffType === 'MULTICUPS';
+            try {
+                console.log('handleManualInput called');
+                console.log('currentTariffType:', currentTariffType);
+                console.log('comparisonMode:', comparisonMode);
+                
+                const isMultiCupsMode = currentTariffType === 'MULTICUPS';
 
-            // Usar multiCupsAddType o currentTariffType para el cálculo
-            const tariffToUse = isMultiCupsMode ? multiCupsAddType : currentTariffType;
-            if (!tariffToUse) return window.showErrorModal("Error: Seleccione un tipo de tarifa (2.0TD o 3.0TD).");
-            
-            const getVal = id => parseFloat(document.getElementById(id).value.replace(',','.')) || 0;
-            
-            const data = {
-                cups: document.getElementById('input-cups').value || 'MANUAL',
-                dias_facturados: parseInt(document.getElementById('input-billing-days').value) || 30,
-                importe_total: getVal('input-total-bill'),
-                fechas: 'Entrada Manual',
-            };
+                // Usar multiCupsAddType o currentTariffType para el cálculo
+                const tariffToUse = isMultiCupsMode ? multiCupsAddType : currentTariffType;
+                console.log('tariffToUse:', tariffToUse);
+                
+                if (!tariffToUse) return window.showErrorModal("Error: Seleccione un tipo de tarifa (2.0TD o 3.0TD).");
+                
+                const getVal = id => parseFloat(document.getElementById(id).value.replace(',','.')) || 0;
+                
+                const data = {
+                    cups: document.getElementById('input-cups').value || 'MANUAL',
+                    dias_facturados: parseInt(document.getElementById('input-billing-days').value) || 30,
+                    importe_total: getVal('input-total-bill'),
+                    fechas: 'Entrada Manual',
+                };
 
-            for(let i=1; i<=6; i++) {
-                data[`potencia_p${i}_kw`] = getVal(`input-p${i}-kw`);
-                data[`consumo_p${i}`] = getVal(`input-e${i}-kwh`);
-            }
-            
-            // Llenar consumo_punta/llano/valle para 2.0TD (basado en E1, E2, E3)
-            data['consumo_punta'] = data.consumo_p1;
-            data['consumo_llano'] = data.consumo_p2;
-            data['consumo_valle'] = data.consumo_p3;
-            
-            
-            if (data.importe_total <= 0) return window.showErrorModal("Introduce el total de la factura.");
-            
-            closeManualInputModal();
-            
-            if (isMultiCupsMode) {
-                saveSupply(data, tariffToUse);
-            } else {
-                compareOffers(data);
+                for(let i=1; i<=6; i++) {
+                    data[`potencia_p${i}_kw`] = getVal(`input-p${i}-kw`);
+                    data[`consumo_p${i}`] = getVal(`input-e${i}-kwh`);
+                }
+                
+                // Llenar consumo_punta/llano/valle para 2.0TD (basado en E1, E2, E3)
+                data['consumo_punta'] = data.consumo_p1;
+                data['consumo_llano'] = data.consumo_p2;
+                data['consumo_valle'] = data.consumo_p3;
+                
+                console.log('Data prepared:', data);
+                
+                if (data.importe_total <= 0) return window.showErrorModal("Introduce el total de la factura.");
+                
+                closeManualInputModal();
+                
+                if (isMultiCupsMode) {
+                    console.log('Saving supply for MultiCups');
+                    saveSupply(data, tariffToUse);
+                } else {
+                    console.log('Comparing offers for single tariff');
+                    compareOffers(data);
+                }
+            } catch (error) {
+                console.error('Error in handleManualInput:', error);
+                window.showErrorModal(`Error al procesar datos: ${error.message}`);
             }
         }
         
