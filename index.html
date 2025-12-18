@@ -835,7 +835,11 @@
                 
                 if (isManualPrimary) {
                     manualInputBtn.classList.add('w-full', 'text-white', 'font-bold', 'py-4', 'px-6', 'rounded-2xl', 'shadow-lg', 'transform', 'transition', 'active:scale-95', 'flex', 'items-center', 'justify-center', 'gap-3');
-                    manualInputBtn.classList.add('bg-gradient-to-r', isDrk ? 'from-drk-600 to-drk-800 hover:from-drk-700 hover:to-drk-900' : 'from-powercup-600 to-powercup-800 hover:from-powercup-500 hover:to-powercup-900');
+                    // Añadir clases de gradiente por separado
+                    const gradientClasses = isDrk 
+                        ? ['bg-gradient-to-r', 'from-drk-600', 'to-drk-800', 'hover:from-drk-700', 'hover:to-drk-900']
+                        : ['bg-gradient-to-r', 'from-powercup-600', 'to-powercup-800', 'hover:from-powercup-500', 'hover:to-powercup-900'];
+                    manualInputBtn.classList.add(...gradientClasses);
                 } else { // DRK active, MULTICUPS, or 2.0TD flow (uses secondary style)
                     manualInputBtn.classList.add('w-full', 'font-bold', 'py-3', 'px-6', 'rounded-xl', 'shadow-sm', 'transform', 'transition', 'active:scale-95', ...brand.SECONDARY_BUTTON_BG.split(' '), ...brand.SECONDARY_BUTTON_TEXT.split(' '));
                 }
