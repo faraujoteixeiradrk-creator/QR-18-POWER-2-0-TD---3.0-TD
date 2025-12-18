@@ -1577,7 +1577,9 @@
 
             if (res.savings <= 0) {
                 savingsEl.textContent = "0,00 €";
-                savingsEl.classList.add(brand.PRIMARY_TEXT.split('-')[1]);
+                // Añadir clase de color según el brand
+                const colorClass = brand.PRIMARY_TEXT.replace('text-', '');
+                savingsEl.classList.add('text-' + colorClass);
                 newCostLabelEl.textContent = "TU COSTE ACTUAL CONSOLIDADO";
                 oldCostPeriodEl.classList.remove('line-through'); // Remove red line-through
                 oldCostPeriodEl.classList.add('text-cta-green-500');
@@ -1908,7 +1910,9 @@
 
             if (res.isNegativeSavings) {
                 savingsEl.textContent = "0,00 €";
-                savingsEl.classList.add(brand.PRIMARY_TEXT.split('-')[1]); // Añadir solo el color de texto
+                // Añadir clase de color según el brand (extraer solo la clase de color)
+                const colorClass = brand.PRIMARY_TEXT.replace('text-', '');
+                savingsEl.classList.add('text-' + colorClass);
                 
                 newCostLabelEl.textContent = "TU COSTE ACTUAL";
                 
